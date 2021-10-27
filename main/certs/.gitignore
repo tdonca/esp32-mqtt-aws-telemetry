@@ -1,0 +1,5 @@
+# Ignore verything in this directory except the .gitignore file
+# This will keep the folder empty and avoid uploading any certs
+*
+*/
+!.gitignore
