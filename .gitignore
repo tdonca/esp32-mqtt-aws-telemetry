@@ -10,3 +10,4 @@ build/
 
 # Ignore the sdkconfig file that stores wifi credentials
 sdkconfig
+sdkconfig.old
