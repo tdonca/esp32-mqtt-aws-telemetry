@@ -60,7 +60,7 @@
 #include <unistd.h>
 
 /* Include Demo Config as the first non-system header. */
-#include "demo_config.h"
+#include "mqtt_operations_config.h"
 
 /* MQTT API headers. */
 #include "core_mqtt.h"
@@ -75,234 +75,7 @@
 /* Clock for timer. */
 #include "clock.h"
 
-#include "demo_header.h"
-
-/**
- * These configuration settings are required to run the mutual auth demo.
- * Throw compilation error if the below configs are not defined.
- */
-#define AWS_IOT_ENDPOINT               CONFIG_MQTT_BROKER_ENDPOINT
-
-#ifndef ROOT_CA_PEM
-    #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
-    static const uint8_t root_cert_auth_pem_start[]  = "-----BEGIN CERTIFICATE-----\n" CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
-    #else
-    extern const uint8_t root_cert_auth_pem_start[]   asm("_binary_root_cert_auth_pem_start");
-    #endif
-    extern const uint8_t root_cert_auth_pem_end[]   asm("_binary_root_cert_auth_pem_end");
-#endif
-
-#ifndef CLIENT_IDENTIFIER
-    #error "Please define a unique client identifier, CLIENT_IDENTIFIER, in demo_config.h."
-#endif
-
-/* The AWS IoT message broker requires either a set of client certificate/private key
- * or username/password to authenticate the client. */
-
-#ifndef CLIENT_USERNAME
-
-/*
- *!!! Please note democonfigCLIENT_PRIVATE_KEY_PEM in used for
- *!!! convenience of demonstration only.  Production devices should
- *!!! store keys securely, such as within a secure element.
- */
-
-    #ifndef CLIENT_CERTIFICATE_PEM
-        extern const uint8_t client_cert_pem_start[] asm("_binary_client_crt_start");
-        extern const uint8_t client_cert_pem_end[] asm("_binary_client_crt_end");
-    #endif
-    #ifndef CLIENT_PRIVATE_KEY_PEM
-        extern const uint8_t client_key_pem_start[] asm("_binary_client_key_start");
-        extern const uint8_t client_key_pem_end[] asm("_binary_client_key_end");
-    #endif
-#else
-
-/* If a username is defined, a client password also would need to be defined for
- * client authentication. */
-    #ifndef CLIENT_PASSWORD
-        #error "Please define client password(CLIENT_PASSWORD) in demo_config.h for client authentication based on username/password."
-    #endif
-
-/* AWS IoT MQTT broker port needs to be 443 for client authentication based on
- * username/password. */
-    #if AWS_MQTT_PORT != 443
-        #error "Broker port, AWS_MQTT_PORT, should be defined as 443 in demo_config.h for client authentication based on username/password."
-    #endif
-#endif /* ifndef CLIENT_USERNAME */
-
-/**
- * Provide default values for undefined configuration settings.
- */
-#ifndef AWS_MQTT_PORT
-    #define AWS_MQTT_PORT    ( CONFIG_MQTT_BROKER_PORT )
-#endif
-
-#ifndef NETWORK_BUFFER_SIZE
-    #define NETWORK_BUFFER_SIZE    ( CONFIG_MQTT_NETWORK_BUFFER_SIZE )
-#endif
-
-#ifndef OS_NAME
-    #define OS_NAME    "FreeRTOS"
-#endif
-
-#ifndef OS_VERSION
-    #define OS_VERSION    tskKERNEL_VERSION_NUMBER
-#endif
-
-#ifndef HARDWARE_PLATFORM_NAME
-    #define HARDWARE_PLATFORM_NAME    CONFIG_HARDWARE_PLATFORM_NAME
-#endif
-
-/**
- * @brief Length of MQTT server host name.
- */
-#define AWS_IOT_ENDPOINT_LENGTH         ( ( uint16_t ) ( sizeof( AWS_IOT_ENDPOINT ) - 1 ) )
-
-/**
- * @brief Length of client identifier.
- */
-#define CLIENT_IDENTIFIER_LENGTH        ( ( uint16_t ) ( sizeof( CLIENT_IDENTIFIER ) - 1 ) )
-
-/**
- * @brief ALPN (Application-Layer Protocol Negotiation) protocol name for AWS IoT MQTT.
- *
- * This will be used if the AWS_MQTT_PORT is configured as 443 for AWS IoT MQTT broker.
- * Please see more details about the ALPN protocol for AWS IoT MQTT endpoint
- * in the link below.
- * https://aws.amazon.com/blogs/iot/mqtt-with-tls-client-authentication-on-port-443-why-it-is-useful-and-how-it-works/
- */
-#define AWS_IOT_MQTT_ALPN               "x-amzn-mqtt-ca"
-
-/**
- * @brief Length of ALPN protocol name.
- */
-#define AWS_IOT_MQTT_ALPN_LENGTH        ( ( uint16_t ) ( sizeof( AWS_IOT_MQTT_ALPN ) - 1 ) )
-
-/**
- * @brief This is the ALPN (Application-Layer Protocol Negotiation) string
- * required by AWS IoT for password-based authentication using TCP port 443.
- */
-#define AWS_IOT_PASSWORD_ALPN           "mqtt"
-
-/**
- * @brief Length of password ALPN.
- */
-#define AWS_IOT_PASSWORD_ALPN_LENGTH    ( ( uint16_t ) ( sizeof( AWS_IOT_PASSWORD_ALPN ) - 1 ) )
-
-
-/**
- * @brief The maximum number of retries for connecting to server.
- */
-#define CONNECTION_RETRY_MAX_ATTEMPTS            ( 5U )
-
-/**
- * @brief The maximum back-off delay (in milliseconds) for retrying connection to server.
- */
-#define CONNECTION_RETRY_MAX_BACKOFF_DELAY_MS    ( 5000U )
-
-/**
- * @brief The base back-off delay (in milliseconds) to use for connection retry attempts.
- */
-#define CONNECTION_RETRY_BACKOFF_BASE_MS         ( 500U )
-
-/**
- * @brief Timeout for receiving CONNACK packet in milli seconds.
- */
-#define CONNACK_RECV_TIMEOUT_MS                  ( 1000U )
-
-
-/**
- * @brief The topic to subscribe and publish to in the example.
- *
- * The topic name starts with the client identifier to ensure that each demo
- * interacts with a unique topic name.
- */
-#define MQTT_EXAMPLE_TOPIC                  CLIENT_IDENTIFIER "/example/topic"
-
-/**
- * @brief Length of client MQTT topic.
- */
-#define MQTT_EXAMPLE_TOPIC_LENGTH           ( ( uint16_t ) ( sizeof( MQTT_EXAMPLE_TOPIC ) - 1 ) )
-
-/**
- * @brief The MQTT message published in this example.
- */
-#define MQTT_EXAMPLE_MESSAGE                "Hello World, Tudor!"
-
-/**
- * @brief The length of the MQTT message published in this example.
- */
-#define MQTT_EXAMPLE_MESSAGE_LENGTH         ( ( uint16_t ) ( sizeof( MQTT_EXAMPLE_MESSAGE ) - 1 ) )
-
-/**
- * @brief Maximum number of outgoing publishes maintained in the application
- * until an ack is received from the broker.
- */
-#define MAX_OUTGOING_PUBLISHES              ( 5U )
-
-/**
- * @brief Invalid packet identifier for the MQTT packets. Zero is always an
- * invalid packet identifier as per MQTT 3.1.1 spec.
- */
-#define MQTT_PACKET_ID_INVALID              ( ( uint16_t ) 0U )
-
-/**
- * @brief Timeout for MQTT_ProcessLoop function in milliseconds.
- */
-#define MQTT_PROCESS_LOOP_TIMEOUT_MS        ( 1500U )
-
-/**
- * @brief The maximum time interval in seconds which is allowed to elapse
- *  between two Control Packets.
- *
- *  It is the responsibility of the Client to ensure that the interval between
- *  Control Packets being sent does not exceed the this Keep Alive value. In the
- *  absence of sending any other Control Packets, the Client MUST send a
- *  PINGREQ Packet.
- */
-#define MQTT_KEEP_ALIVE_INTERVAL_SECONDS    ( 60U )
-
-/**
- * @brief Delay between MQTT publishes in seconds.
- */
-#define DELAY_BETWEEN_PUBLISHES_SECONDS     ( 1U )
-
-/**
- * @brief Number of PUBLISH messages sent per iteration.
- */
-#define MQTT_PUBLISH_COUNT_PER_LOOP         ( 5U )
-
-/**
- * @brief Delay in seconds between two iterations of subscribePublishLoop().
- */
-#define MQTT_SUBPUB_LOOP_DELAY_SECONDS      ( 5U )
-
-/**
- * @brief Transport timeout in milliseconds for transport send and receive.
- */
-#define TRANSPORT_SEND_RECV_TIMEOUT_MS      ( 1500U )
-
-/**
- * @brief The MQTT metrics string expected by AWS IoT.
- */
-#define METRICS_STRING                      "?SDK=" OS_NAME "&Version=" OS_VERSION "&Platform=" HARDWARE_PLATFORM_NAME "&MQTTLib=" MQTT_LIB
-
-/**
- * @brief The length of the MQTT metrics string expected by AWS IoT.
- */
-#define METRICS_STRING_LENGTH               ( ( uint16_t ) ( sizeof( METRICS_STRING ) - 1 ) )
-
-
-#ifdef CLIENT_USERNAME
-
-/**
- * @brief Append the username with the metrics string if #CLIENT_USERNAME is defined.
- *
- * This is to support both metrics reporting and username/password based client
- * authentication by AWS IoT.
- */
-    #define CLIENT_USERNAME_WITH_METRICS    CLIENT_USERNAME METRICS_STRING
-#endif
+#include "telemetry_operations.h"
 
 /*-----------------------------------------------------------*/
 
@@ -366,12 +139,16 @@ static MQTTSubAckStatus_t globalSubAckStatus = MQTTSubAckFailure;
 /*-----------------------------------------------------------*/
 
 /**
- * @brief The random number generator to use for exponential backoff with
- * jitter retry logic.
+ * @brief Initializes the MQTT library.
  *
- * @return The generated random number.
+ * @param[in] pMqttContext MQTT context pointer.
+ * @param[in] pNetworkContext The network context pointer.
+ *
+ * @return EXIT_SUCCESS if the MQTT library is initialized;
+ * EXIT_FAILURE otherwise.
  */
-static uint32_t generateRandomNumber();
+static int initializeMqtt( MQTTContext_t * pMqttContext,
+                           NetworkContext_t * pNetworkContext );
 
 /**
  * @brief Connect to MQTT broker with reconnection retries.
@@ -402,6 +179,23 @@ static int subscribePublishLoop( MQTTContext_t * pMqttContext,
                                  bool * pClientSessionPresent );
 
 /**
+ * @brief Disconnect from MQTT broker by closing the network connection.
+ *
+ * @param[out] pNetworkContext The output parameter to return the updated network context.
+ *
+ * @return EXIT_FAILURE on failure; EXIT_SUCCESS on successful disconnect.
+ */
+static int disconnectFromServer( NetworkContext_t * pNetworkContext );
+
+/**
+ * @brief The random number generator to use for exponential backoff with
+ * jitter retry logic.
+ *
+ * @return The generated random number.
+ */
+static uint32_t generateRandomNumber();
+
+/**
  * @brief The function to handle the incoming publishes.
  *
  * @param[in] pPublishInfo Pointer to publish info of the incoming publish.
@@ -421,18 +215,6 @@ static void handleIncomingPublish( MQTTPublishInfo_t * pPublishInfo,
 static void eventCallback( MQTTContext_t * pMqttContext,
                            MQTTPacketInfo_t * pPacketInfo,
                            MQTTDeserializedInfo_t * pDeserializedInfo );
-
-/**
- * @brief Initializes the MQTT library.
- *
- * @param[in] pMqttContext MQTT context pointer.
- * @param[in] pNetworkContext The network context pointer.
- *
- * @return EXIT_SUCCESS if the MQTT library is initialized;
- * EXIT_FAILURE otherwise.
- */
-static int initializeMqtt( MQTTContext_t * pMqttContext,
-                           NetworkContext_t * pNetworkContext );
 
 /**
  * @brief Sends an MQTT CONNECT packet over the already connected TCP socket.
@@ -559,117 +341,6 @@ static int handleResubscribe( MQTTContext_t * pMqttContext );
 static uint32_t generateRandomNumber()
 {
     return( rand() );
-}
-
-/*-----------------------------------------------------------*/
-static int connectToServerWithBackoffRetries( NetworkContext_t * pNetworkContext )
-{
-    int returnStatus = EXIT_SUCCESS;
-    BackoffAlgorithmStatus_t backoffAlgStatus = BackoffAlgorithmSuccess;
-    TlsTransportStatus_t opensslStatus = TLS_TRANSPORT_SUCCESS;
-    BackoffAlgorithmContext_t reconnectParams;
-    ServerInfo_t serverInfo;
-    NetworkCredentials_t *opensslCredentials = (NetworkCredentials_t*) malloc (sizeof (NetworkCredentials_t));
-    opensslCredentials->disableSni = 0;
-    uint16_t nextRetryBackOff;
-
-    /* Initialize information to connect to the MQTT broker. */
-    serverInfo.pHostName = AWS_IOT_ENDPOINT;
-    serverInfo.hostNameLength = AWS_IOT_ENDPOINT_LENGTH;
-    serverInfo.port = AWS_MQTT_PORT;
-
-    /* Initialize credentials for establishing TLS session. */
-    opensslCredentials->pRootCa = ( const unsigned char * ) root_cert_auth_pem_start;
-    opensslCredentials->rootCaSize = root_cert_auth_pem_end - root_cert_auth_pem_start;
-
-    /* If #CLIENT_USERNAME is defined, username/password is used for authenticating
-     * the client. */
-    #ifndef CLIENT_USERNAME
-        opensslCredentials->pClientCert = ( const unsigned char * ) client_cert_pem_start;
-        opensslCredentials->clientCertSize = client_cert_pem_end - client_cert_pem_start;
-        opensslCredentials->pPrivateKey = ( const unsigned char * ) client_key_pem_start;
-        opensslCredentials->privateKeySize = client_key_pem_end - client_key_pem_start;
-    #endif
-
-    /* AWS IoT requires devices to send the Server Name Indication (SNI)
-     * extension to the Transport Layer Security (TLS) protocol and provide
-     * the complete endpoint address in the host_name field. Details about
-     * SNI for AWS IoT can be found in the link below.
-     * https://docs.aws.amazon.com/iot/latest/developerguide/transport-security.html */
-
-    if( AWS_MQTT_PORT == 443 )
-    {
-        /* Pass the ALPN protocol name depending on the port being used.
-         * Please see more details about the ALPN protocol for the AWS IoT MQTT
-         * endpoint in the link below.
-         * https://aws.amazon.com/blogs/iot/mqtt-with-tls-client-authentication-on-port-443-why-it-is-useful-and-how-it-works/
-         *
-         * For username and password based authentication in AWS IoT,
-         * #AWS_IOT_PASSWORD_ALPN is used. More details can be found in the
-         * link below.
-         * https://docs.aws.amazon.com/iot/latest/developerguide/custom-authentication.html
-         */
-
-        static const char * pcAlpnProtocols[] = { NULL, NULL };
-
-        #ifdef CLIENT_USERNAME
-            pcAlpnProtocols[0] = AWS_IOT_PASSWORD_ALPN;
-        #else
-            pcAlpnProtocols[0] = AWS_IOT_MQTT_ALPN;
-        #endif
-
-        opensslCredentials->pAlpnProtos = pcAlpnProtocols;
-    } else {
-        opensslCredentials->pAlpnProtos = NULL;
-    }
-
-    /* Initialize reconnect attempts and interval */
-    BackoffAlgorithm_InitializeParams( &reconnectParams,
-                                       CONNECTION_RETRY_BACKOFF_BASE_MS,
-                                       CONNECTION_RETRY_MAX_BACKOFF_DELAY_MS,
-                                       CONNECTION_RETRY_MAX_ATTEMPTS );
-
-    /* Attempt to connect to MQTT broker. If connection fails, retry after
-     * a timeout. Timeout value will exponentially increase until maximum
-     * attempts are reached.
-     */
-    do
-    {
-        /* Establish a TLS session with the MQTT broker. This example connects
-         * to the MQTT broker as specified in AWS_IOT_ENDPOINT and AWS_MQTT_PORT
-         * at the demo config header. */
-        LogInfo( ( "Establishing a TLS session to %.*s:%d.",
-                   AWS_IOT_ENDPOINT_LENGTH,
-                   AWS_IOT_ENDPOINT,
-                   AWS_MQTT_PORT ) );
-        opensslStatus = TLS_FreeRTOS_Connect ( pNetworkContext,
-                                            serverInfo.pHostName,
-                                            serverInfo.port,
-                                            opensslCredentials,
-                                            TRANSPORT_SEND_RECV_TIMEOUT_MS,
-                                            TRANSPORT_SEND_RECV_TIMEOUT_MS );
-
-        if( opensslStatus != TLS_TRANSPORT_SUCCESS )
-        {
-            /* Generate a random number and get back-off value (in milliseconds) for the next connection retry. */
-            backoffAlgStatus = BackoffAlgorithm_GetNextBackoff( &reconnectParams, generateRandomNumber(), &nextRetryBackOff );
-
-            if( backoffAlgStatus == BackoffAlgorithmRetriesExhausted )
-            {
-                LogError( ( "Connection to the broker failed, all attempts exhausted." ) );
-                returnStatus = EXIT_FAILURE;
-            }
-            else if( backoffAlgStatus == BackoffAlgorithmSuccess )
-            {
-                LogWarn( ( "Connection to the broker failed. Retrying connection "
-                           "after %hu ms backoff.",
-                           ( unsigned short ) nextRetryBackOff ) );
-                Clock_SleepMs( nextRetryBackOff );
-            }
-        }
-    } while( ( opensslStatus != TLS_TRANSPORT_SUCCESS ) && ( backoffAlgStatus == BackoffAlgorithmSuccess ) );
-
-    return returnStatus;
 }
 
 /*-----------------------------------------------------------*/
@@ -1225,6 +896,39 @@ static int unsubscribeFromTopic( MQTTContext_t * pMqttContext )
 
 /*-----------------------------------------------------------*/
 
+static int publishToTopicQoS0(MQTTContext_t * pMqttContext) {
+    int returnStatus = EXIT_SUCCESS;
+    MQTTStatus_t mqttStatus = MQTTSuccess;
+
+    assert( pMqttContext != NULL );
+
+    // Create the MQTT Publish message
+    MQTTPublishInfo_t publishPacket = {0};
+    publishPacket.qos = MQTTQoS0;
+    publishPacket.pTopicName = MQTT_EXAMPLE_TOPIC;
+    publishPacket.topicNameLength = MQTT_EXAMPLE_TOPIC_LENGTH;
+    publishPacket.pPayload = MQTT_EXAMPLE_MESSAGE;
+    publishPacket.payloadLength = MQTT_EXAMPLE_MESSAGE_LENGTH;
+    uint16_t packetId = MQTT_GetPacketId(pMqttContext);
+    
+    mqttStatus = MQTT_Publish(pMqttContext, &publishPacket, packetId);
+
+    if (mqttStatus == MQTTSuccess) {
+        LogInfo(("PUBLISH sent for topic %.*s to broker with packet ID %u.\n\n",
+                        MQTT_EXAMPLE_TOPIC_LENGTH,
+                        MQTT_EXAMPLE_TOPIC,
+                        packetId));
+    } else {
+        LogError(("Failed to send PUBLISH packet to broker with error = %s.",
+                        MQTT_Status_strerror(mqttStatus)));
+        returnStatus = EXIT_FAILURE;
+    }
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
 static int publishToTopic( MQTTContext_t * pMqttContext )
 {
     int returnStatus = EXIT_SUCCESS;
@@ -1281,7 +985,7 @@ static int publishToTopic( MQTTContext_t * pMqttContext )
 
 /*-----------------------------------------------------------*/
 
-static int initializeMqtt( MQTTContext_t * pMqttContext,
+int initializeMqtt( MQTTContext_t * pMqttContext,
                            NetworkContext_t * pNetworkContext )
 {
     int returnStatus = EXIT_SUCCESS;
@@ -1316,6 +1020,174 @@ static int initializeMqtt( MQTTContext_t * pMqttContext,
         LogError( ( "MQTT init failed: Status = %s.", MQTT_Status_strerror( mqttStatus ) ) );
     }
 
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+static int connectToServerWithBackoffRetries( NetworkContext_t * pNetworkContext )
+{
+    int returnStatus = EXIT_SUCCESS;
+    BackoffAlgorithmStatus_t backoffAlgStatus = BackoffAlgorithmSuccess;
+    TlsTransportStatus_t opensslStatus = TLS_TRANSPORT_SUCCESS;
+    BackoffAlgorithmContext_t reconnectParams;
+    ServerInfo_t serverInfo;
+    NetworkCredentials_t *opensslCredentials = (NetworkCredentials_t*) malloc (sizeof (NetworkCredentials_t));
+    opensslCredentials->disableSni = 0;
+    uint16_t nextRetryBackOff;
+
+    /* Initialize information to connect to the MQTT broker. */
+    serverInfo.pHostName = AWS_IOT_ENDPOINT;
+    serverInfo.hostNameLength = AWS_IOT_ENDPOINT_LENGTH;
+    serverInfo.port = AWS_MQTT_PORT;
+
+    /* Initialize credentials for establishing TLS session. */
+    opensslCredentials->pRootCa = ( const unsigned char * ) root_cert_auth_pem_start;
+    opensslCredentials->rootCaSize = root_cert_auth_pem_end - root_cert_auth_pem_start;
+
+    /* If #CLIENT_USERNAME is defined, username/password is used for authenticating
+     * the client. */
+    #ifndef CLIENT_USERNAME
+        opensslCredentials->pClientCert = ( const unsigned char * ) client_cert_pem_start;
+        opensslCredentials->clientCertSize = client_cert_pem_end - client_cert_pem_start;
+        opensslCredentials->pPrivateKey = ( const unsigned char * ) client_key_pem_start;
+        opensslCredentials->privateKeySize = client_key_pem_end - client_key_pem_start;
+    #endif
+
+    /* AWS IoT requires devices to send the Server Name Indication (SNI)
+     * extension to the Transport Layer Security (TLS) protocol and provide
+     * the complete endpoint address in the host_name field. Details about
+     * SNI for AWS IoT can be found in the link below.
+     * https://docs.aws.amazon.com/iot/latest/developerguide/transport-security.html */
+
+    if( AWS_MQTT_PORT == 443 )
+    {
+        /* Pass the ALPN protocol name depending on the port being used.
+         * Please see more details about the ALPN protocol for the AWS IoT MQTT
+         * endpoint in the link below.
+         * https://aws.amazon.com/blogs/iot/mqtt-with-tls-client-authentication-on-port-443-why-it-is-useful-and-how-it-works/
+         *
+         * For username and password based authentication in AWS IoT,
+         * #AWS_IOT_PASSWORD_ALPN is used. More details can be found in the
+         * link below.
+         * https://docs.aws.amazon.com/iot/latest/developerguide/custom-authentication.html
+         */
+
+        static const char * pcAlpnProtocols[] = { NULL, NULL };
+
+        #ifdef CLIENT_USERNAME
+            pcAlpnProtocols[0] = AWS_IOT_PASSWORD_ALPN;
+        #else
+            pcAlpnProtocols[0] = AWS_IOT_MQTT_ALPN;
+        #endif
+
+        opensslCredentials->pAlpnProtos = pcAlpnProtocols;
+    } else {
+        opensslCredentials->pAlpnProtos = NULL;
+    }
+
+    /* Initialize reconnect attempts and interval */
+    BackoffAlgorithm_InitializeParams( &reconnectParams,
+                                       CONNECTION_RETRY_BACKOFF_BASE_MS,
+                                       CONNECTION_RETRY_MAX_BACKOFF_DELAY_MS,
+                                       CONNECTION_RETRY_MAX_ATTEMPTS );
+
+    /* Attempt to connect to MQTT broker. If connection fails, retry after
+     * a timeout. Timeout value will exponentially increase until maximum
+     * attempts are reached.
+     */
+    do
+    {
+        /* Establish a TLS session with the MQTT broker. This example connects
+         * to the MQTT broker as specified in AWS_IOT_ENDPOINT and AWS_MQTT_PORT
+         * at the demo config header. */
+        LogInfo( ( "Establishing a TLS session to %.*s:%d.",
+                   AWS_IOT_ENDPOINT_LENGTH,
+                   AWS_IOT_ENDPOINT,
+                   AWS_MQTT_PORT ) );
+        opensslStatus = TLS_FreeRTOS_Connect ( pNetworkContext,
+                                            serverInfo.pHostName,
+                                            serverInfo.port,
+                                            opensslCredentials,
+                                            TRANSPORT_SEND_RECV_TIMEOUT_MS,
+                                            TRANSPORT_SEND_RECV_TIMEOUT_MS );
+
+        if( opensslStatus != TLS_TRANSPORT_SUCCESS )
+        {
+            /* Generate a random number and get back-off value (in milliseconds) for the next connection retry. */
+            backoffAlgStatus = BackoffAlgorithm_GetNextBackoff( &reconnectParams, generateRandomNumber(), &nextRetryBackOff );
+
+            if( backoffAlgStatus == BackoffAlgorithmRetriesExhausted )
+            {
+                LogError( ( "Connection to the broker failed, all attempts exhausted." ) );
+                returnStatus = EXIT_FAILURE;
+            }
+            else if( backoffAlgStatus == BackoffAlgorithmSuccess )
+            {
+                LogWarn( ( "Connection to the broker failed. Retrying connection "
+                           "after %hu ms backoff.",
+                           ( unsigned short ) nextRetryBackOff ) );
+                Clock_SleepMs( nextRetryBackOff );
+            }
+        }
+    } while( ( opensslStatus != TLS_TRANSPORT_SUCCESS ) && ( backoffAlgStatus == BackoffAlgorithmSuccess ) );
+
+    return returnStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+static int disconnectFromServer(NetworkContext_t * pNetworkContext) 
+{
+    ( void ) TLS_FreeRTOS_Disconnect( pNetworkContext );
+
+    return EXIT_SUCCESS;
+}
+
+/*-----------------------------------------------------------*/
+
+static int publishLoop(MQTTContext_t * pMqttContext) {
+    int returnStatus = EXIT_SUCCESS;
+    uint32_t publishCount = 0;
+    bool createCleanSession = true;
+    bool brokerSessionPresent;
+
+    assert(pMqttContext != NULL);
+
+    /* Establish a clean MQTT session on top of TCP+TLS connection. */
+    LogInfo(("Creating an MQTT connection to %.*s.",
+               AWS_IOT_ENDPOINT_LENGTH,
+               AWS_IOT_ENDPOINT));
+
+    /* Sends an MQTT Connect packet using the established TLS session,
+     * then waits for connection acknowledgment (CONNACK) packet. */
+    returnStatus = establishMqttSession(pMqttContext, createCleanSession, &brokerSessionPresent);
+
+    if (returnStatus == EXIT_SUCCESS) {
+        
+        /* There should not be any existing broker session since 
+         * we are establishing a clean MQTT session */
+        assert(brokerSessionPresent == false);
+
+        // Publish messages continuously with QoS0
+        for (;; publishCount++) {
+            LogInfo(("Sending Publish to the MQTT topic %.*s.",
+                       MQTT_EXAMPLE_TOPIC_LENGTH,
+                       MQTT_EXAMPLE_TOPIC));
+            returnStatus = publishToTopicQoS0(pMqttContext);
+            
+            LogInfo(("Delay before the next publish.\n\n"));
+            sleep(DELAY_BETWEEN_PUBLISHES_SECONDS);
+        }
+
+        /* This should not happen, but cleanup the MQTT Session if
+         * there is a publish error */
+        LogInfo(("Disconnecting the MQTT connection with %.*s.",
+                   AWS_IOT_ENDPOINT_LENGTH,
+                   AWS_IOT_ENDPOINT));
+        returnStatus = disconnectMqttSession(pMqttContext);
+    }
+    
     return returnStatus;
 }
 
@@ -1514,87 +1386,42 @@ static int subscribePublishLoop( MQTTContext_t * pMqttContext,
 
 /*-----------------------------------------------------------*/
 
-/**
- * @brief Entry point of demo.
- *
- * The example shown below uses MQTT APIs to send and receive MQTT packets
- * over the TLS connection established using OpenSSL.
- *
- * The example is single threaded and uses statically allocated memory;
- * it uses QOS1 and therefore implements a retransmission mechanism
- * for Publish messages. Retransmission of publish messages are attempted
- * when a MQTT connection is established with a session that was already
- * present. All the outgoing publish messages waiting to receive PUBACK
- * are resent in this demo. In order to support retransmission all the outgoing
- * publishes are stored until a PUBACK is received.
- */
-int aws_iot_demo_main( int argc,
-          char ** argv )
-{
+int enableMQTTTelemetry() {
+    
+    // Initialize the context
     int returnStatus = EXIT_SUCCESS;
-    MQTTContext_t mqttContext = { 0 };
-    NetworkContext_t networkContext = { 0 };
-    bool clientSessionPresent = false;
+    MQTTContext_t mqttContext = {0};
+    NetworkContext_t networkContext = {0};
     struct timespec tp;
 
-    ( void ) argc;
-    ( void ) argv;
+    // Initialize the random number generator
+    (void) clock_gettime(CLOCK_REALTIME, &tp);
+    srand(tp.tv_nsec);
 
-    /* Seed pseudo random number generator (provided by ISO C standard library) for
-     * use by retry utils library when retrying failed network operations. */
+    // Intialize MQTT library
+    returnStatus = initializeMqtt(&mqttContext, &networkContext);
 
-    /* Get current time to seed pseudo random number generator. */
-    ( void ) clock_gettime( CLOCK_REALTIME, &tp );
-    /* Seed pseudo random number generator with nanoseconds. */
-    srand( tp.tv_nsec );
+    // Connect to MQTT server
+    if (returnStatus == EXIT_SUCCESS) {
 
-    /* Initialize MQTT library. Initialization of the MQTT library needs to be
-     * done only once in this demo. */
-    returnStatus = initializeMqtt( &mqttContext, &networkContext );
+        /* Attempt to connect to the MQTT broker. If connection fails, retry after
+         * a timeout. Timeout value will be exponentially increased till the maximum
+         * attempts are reached or maximum timeout value is reached. The function
+         * returns EXIT_FAILURE if the TCP connection cannot be established to
+         * broker after configured number of attempts. */
+        returnStatus = connectToServerWithBackoffRetries(&networkContext);
 
-    if( returnStatus == EXIT_SUCCESS )
-    {
-        for( ; ; )
-        {
-            /* Attempt to connect to the MQTT broker. If connection fails, retry after
-             * a timeout. Timeout value will be exponentially increased till the maximum
-             * attempts are reached or maximum timeout value is reached. The function
-             * returns EXIT_FAILURE if the TCP connection cannot be established to
-             * broker after configured number of attempts. */
-            returnStatus = connectToServerWithBackoffRetries( &networkContext );
-
-            if( returnStatus == EXIT_FAILURE )
-            {
-                /* Log error to indicate connection failure after all
-                 * reconnect attempts are over. */
-                LogError( ( "Failed to connect to MQTT broker %.*s.",
-                            AWS_IOT_ENDPOINT_LENGTH,
-                            AWS_IOT_ENDPOINT ) );
-            }
-            else
-            {
-                /* If TLS session is established, execute Subscribe/Publish loop. */
-                returnStatus = subscribePublishLoop( &mqttContext, &clientSessionPresent );
-
-                // TODO: add TLS disconnect here instead
-            }
-
-            if( returnStatus == EXIT_SUCCESS )
-            {
-                /* Log message indicating an iteration completed successfully. */
-                LogInfo( ( "Demo completed successfully." ) );
-            }
-
-            // TODO: this should only Disconnect if the the connection was actually successful
-            /* End TLS session, then close TCP connection. */
-            ( void ) TLS_FreeRTOS_Disconnect( &networkContext );
-
-            LogInfo( ( "Short delay before starting the next iteration....\n" ) );
-            sleep( MQTT_SUBPUB_LOOP_DELAY_SECONDS );
+        // Start the publish loop
+        if (returnStatus == EXIT_SUCCESS) {
+            // TODO: change this to a continuous publish loop
+            //returnStatus = subscribePublishLoop(&mqttContext, &clientSessionPresent);
+            returnStatus = publishLoop(&mqttContext);
+            LogInfo(("Publish loop terminated. Disconnecting from MQTT Server"));
+            returnStatus = disconnectFromServer(&networkContext);
+        } else {
+            LogError(("Failed to connect to MQTT broker."));
         }
     }
 
     return returnStatus;
 }
-
-/*-----------------------------------------------------------*/

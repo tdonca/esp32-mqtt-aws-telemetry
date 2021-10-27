@@ -9,7 +9,7 @@ include( $ENV{ESP_AWS_IOT_SDK_DIR}/port/portFilePaths.cmake )
 
 set(COMPONENT_SRCS
 	"app_main.c"
-	"mqtt_demo_mutual_auth.c"
+	"mqtt_operations.c"
 	"${MQTT_SOURCES}"
 	"${MQTT_SERIALIZER_SOURCES}"
 	"${BACKOFF_ALGORITHM_SOURCES}"
