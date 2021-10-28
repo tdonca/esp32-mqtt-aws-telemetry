@@ -110,40 +110,6 @@
  */
 
 /**
- * @brief The username value for authenticating client to MQTT broker when
- * username/password based client authentication is used.
- *
- * Refer to the AWS IoT documentation below for details regarding client
- * authentication with a username and password.
- * https://docs.aws.amazon.com/iot/latest/developerguide/custom-authentication.html
- * As mentioned in the link above, an authorizer setup needs to be done to use
- * username/password based client authentication.
- *
- * @note AWS IoT message broker requires either a set of client certificate/private key
- * or username/password to authenticate the client. If this config is defined,
- * the username and password will be used instead of the client certificate and
- * private key for client authentication.
- *
- * #define CLIENT_USERNAME    "...insert here..."
- */
-
-/**
- * @brief The password value for authenticating client to MQTT broker when
- * username/password based client authentication is used.
- *
- * Refer to the AWS IoT documentation below for details regarding client
- * authentication with a username and password.
- * https://docs.aws.amazon.com/iot/latest/developerguide/custom-authentication.html
- * As mentioned in the link above, an authorizer setup needs to be done to use
- * username/password based client authentication.
- *
- * @note AWS IoT message broker requires either a set of client certificate/private key
- * or username/password to authenticate the client.
- *
- * #define CLIENT_PASSWORD    "...insert here..."
- */
-
-/**
  * @brief MQTT client identifier.
  *
  * No two clients may use the same client identifier simultaneously.
@@ -227,17 +193,6 @@
     #endif
 #else
 
-/* If a username is defined, a client password also would need to be defined for
- * client authentication. */
-    #ifndef CLIENT_PASSWORD
-        #error "Please define client password(CLIENT_PASSWORD) in demo_config.h for client authentication based on username/password."
-    #endif
-
-/* AWS IoT MQTT broker port needs to be 443 for client authentication based on
- * username/password. */
-    #if AWS_MQTT_PORT != 443
-        #error "Broker port, AWS_MQTT_PORT, should be defined as 443 in demo_config.h for client authentication based on username/password."
-    #endif
 #endif /* ifndef CLIENT_USERNAME */
 
 /**
@@ -289,18 +244,6 @@
 #define AWS_IOT_MQTT_ALPN_LENGTH        ( ( uint16_t ) ( sizeof( AWS_IOT_MQTT_ALPN ) - 1 ) )
 
 /**
- * @brief This is the ALPN (Application-Layer Protocol Negotiation) string
- * required by AWS IoT for password-based authentication using TCP port 443.
- */
-#define AWS_IOT_PASSWORD_ALPN           "mqtt"
-
-/**
- * @brief Length of password ALPN.
- */
-#define AWS_IOT_PASSWORD_ALPN_LENGTH    ( ( uint16_t ) ( sizeof( AWS_IOT_PASSWORD_ALPN ) - 1 ) )
-
-
-/**
  * @brief The maximum number of retries for connecting to server.
  */
 #define CONNECTION_RETRY_MAX_ATTEMPTS            ( 5U )
@@ -337,7 +280,7 @@
 /**
  * @brief The MQTT message published in this example.
  */
-#define MQTT_EXAMPLE_MESSAGE                "Hello World, Tudor!"
+#define MQTT_EXAMPLE_MESSAGE                "{\"sensorId\":\"SolarPanel1\", \"sensorValue\":\"2.1V\"}"
 
 /**
  * @brief The length of the MQTT message published in this example.
@@ -401,18 +344,6 @@
  * @brief The length of the MQTT metrics string expected by AWS IoT.
  */
 #define METRICS_STRING_LENGTH               ( ( uint16_t ) ( sizeof( METRICS_STRING ) - 1 ) )
-
-
-#ifdef CLIENT_USERNAME
-
-/**
- * @brief Append the username with the metrics string if #CLIENT_USERNAME is defined.
- *
- * This is to support both metrics reporting and username/password based client
- * authentication by AWS IoT.
- */
-    #define CLIENT_USERNAME_WITH_METRICS    CLIENT_USERNAME METRICS_STRING
-#endif
 
 /*-----------------------------------------------------------*/
 
