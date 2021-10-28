@@ -9,6 +9,9 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32_mqtt_aws_telemetry)
 
 # Save the IoT device certificates as binary data
+# AWS Root CA Certificate
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/root_cert_auth.pem" TEXT)
+# IoT device certificate
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/client.crt" TEXT)
+# IoT device private key
 target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certs/client.key" TEXT)
